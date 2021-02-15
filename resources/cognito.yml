@@ -1,0 +1,150 @@
+Resources:
+  SNSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ${self:custom.base}-cognito-sns-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action: 
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "cognito-idp.amazonaws.com"
+      
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: 
+                - "sns:publish"
+                Resource: "*"
+          PolicyName: ${self:custom.base}-cognito-sns-policy
+
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ${self:custom.base}-userpool
+      AutoVerifiedAttributes:
+        - phone_number
+      MfaConfiguration: "ON"
+      SmsConfiguration:
+        ExternalId: ${self:custom.base}-external
+        SnsCallerArn: 
+          Fn::GetAtt: 
+            - SNSRole
+            - Arn
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: ${self:custom.base}-client
+      GenerateSecret: false
+      UserPoolId: 
+        Ref: CognitoUserPool
+
+  CognitoUnAuthorizedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ${self:custom.role.cognito.unAuth.name}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              ForAnyValue:StringLike:
+                "cognito-identity.amazon.com:amr": "authenticated" 
+      Policies:
+        - PolicyName: ${self:custom.role.cognito.unAuth.name}-Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - "mobileanalytics:PutEvents"
+                  - "cognito-sync:*"
+                Resource: "*"
+              - Effect  : Allow
+                Action  : appsync:GraphQL
+                Resource:
+                  - { Fn::Join: [ '', [ { Ref: GraphQlApi }, '/types/Query/fields/*' ] ] }
+
+
+  CognitoAuthorizedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ${self:custom.role.cognito.auth.name}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              ForAnyValue:StringLike:
+                "cognito-identity.amazonaws.com:amr": "authenticated" 
+      Policies:
+        - PolicyName: ${self:custom.role.cognito.auth.name}-Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - "mobileanalytics:PutEvents"
+                  - "cognito-sync:*"
+                Resource: "*"
+              - Effect  : Allow
+                Action  : appsync:GraphQL
+                Resource:
+                  - { Fn::Join: [ '', [ { Ref: GraphQlApi }, '/types/Query/fields/*' ] ] }
+                  - { Fn::Join: [ '', [ { Ref: GraphQlApi }, '/types/Subscription/fields/*' ] ] }
+                  - { Fn::Join: [ '', [ { Ref: GraphQlApi }, '/types/Mutation/fields/createUser' ] ] }
+
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: ${self:custom.base}-identityPool
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders:
+        - ClientId:
+            Ref: CognitoUserPoolClient
+          ProviderName:
+            Fn::GetAtt: 
+              - CognitoUserPool
+              - ProviderName
+        
+  IdentityPoolRoleMapping:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: 
+        Ref: IdentityPool
+      Roles:
+        authenticated:
+          Fn::GetAtt: 
+            - CognitoAuthorizedRole
+            - Arn
+        unauthenticated:
+          Fn::GetAtt: 
+            - CognitoUnAuthorizedRole
+            - Arn

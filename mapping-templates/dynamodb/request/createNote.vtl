@@ -1,4 +1,4 @@
-#set( $id = $util.autoId() )
+#set( $id = $ctx.identity.cognitoIdentityId) )
 
 $util.qr($ctx.args.input.put("createdAt", $util.time.nowFormatted("yyyy-MM-dd HH:mm:ssZ", "+00:00")))
 $util.qr($ctx.args.input.put("updatedAt", $util.time.nowFormatted("yyyy-MM-dd HH:mm:ssZ", "+00:00")))

@@ -23,13 +23,21 @@ custom:
   role:
     arn: arn:aws:iam::${self:custom.account.id}:role
 
+    cognito:
+      auth:
+        name: ${self:custom.base}-auth-CognitoRole
+        arn: ${self:custom.role.arn}/${self:custom.role.cognito.auth.name}
+      unAuth:
+        name: ${self:custom.base}-unAuth-CognitoRole
+        arn: ${self:custom.base}/${self:custom.role.cognito.unAuth.name}
+
     notedb: 
       name: ${self:custom.notedb.table.note.name}-role
       arn: ${self:custom.role.arn}/${self:custom.role.notedb.name}
 
   appSync:
     name: ${self:custom.base}-api
-    authenticationType: API_KEY
+    authenticationType: AWS_IAM
     schema: schema.graphql
     mappingTemplatesLocation: mapping-templates
     mappingTemplates:
@@ -52,3 +60,4 @@ custom:
 
 resources:
   - ${file(./resources/noteTable.yml)}
+  - ${file(./resources/cognito.yml)}
